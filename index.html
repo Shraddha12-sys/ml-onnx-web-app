@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Model Deployment: Calories & Heart Disease</title>
+    <!-- Load ONNX Runtime Web -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --border-color: #cbd5e1;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 680px;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-top: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-size: 24px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        .model-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .model-btn {
+            flex: 1;
+            padding: 14px;
+            border: 2px solid var(--border-color);
+            background: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+            transition: all 0.2s ease;
+        }
+        .model-btn.active {
+            border-color: var(--primary);
+            background: #eff6ff;
+            color: var(--primary);
+        }
+        .form-section {
+            display: none;
+        }
+        .form-section.active {
+            display: block;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        @media (max-width: 600px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+        .input-group {
+            margin-bottom: 14px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 13.5px;
+        }
+        .hint {
+            font-weight: normal;
+            color: #64748b;
+            font-size: 12px;
+            display: block;
+            margin-top: 2px;
+            line-height: 1.3;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .submit-btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 13px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+            transition: background 0.2s;
+        }
+        .submit-btn:hover {
+            background: var(--primary-dark);
+        }
+        .submit-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .result-box {
+            margin-top: 25px;
+            padding: 18px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+            border: 1px solid #cbd5e1;
+        }
+        .result-box h3 {
+            margin: 0 0 8px 0;
+            color: #475569;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .result-value {
+            font-size: 22px;
+            font-weight: bold;
+            color: #0f172a;
+        }
+        .prob-subtext {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 6px;
+        }
+        .info-card {
+            background: #eff6ff;
+            border-left: 4px solid var(--primary);
+            padding: 12px 15px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            border-radius: 0 6px 6px 0;
+            color: #1e40af;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>AI Health & Fitness Predictor</h1>
+    <div class="subtitle">Select a deployed ONNX model below to run real-time browser inference</div>
+
+    <!-- Model Selection Tabs -->
+    <div class="model-selector">
+        <button type="button" class="model-btn active" id="btn-calories" onclick="switchModel('calories')">🔥 Calorie Burn (Regression)</button>
+        <button type="button" class="model-btn" id="btn-heart" onclick="switchModel('heart')">❤️ Heart Disease (Classification)</button>
+    </div>
+
+    <!-- 1. Calories Regression Form -->
+    <form id="form-calories" class="form-section active" onsubmit="runCaloriesONNX(event)">
+        <div class="info-card">
+            <strong>Calorie Expenditure Model (DLNet):</strong> Estimates total calories burned during a workout using 7 physiological and activity metrics.
+        </div>
+        
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="c_gender">Gender (M / F):</label>
+                <select id="c_gender">
+                    <option value="0">Male (M)</option>
+                    <option value="1">Female (F)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="c_age">Age (Years): <span class="hint">Typical range: 20 – 80 yrs</span></label>
+                <input type="number" id="c_age" required min="10" max="100" value="30">
+            </div>
+
+            <div class="input-group">
+                <label for="c_height">Height (cm): <span class="hint">Typical range: 140 – 200 cm</span></label>
+                <input type="number" id="c_height" required min="100" max="250" value="175">
+            </div>
+
+            <div class="input-group">
+                <label for="c_weight">Weight (kg): <span class="hint">Typical range: 40 – 150 kg</span></label>
+                <input type="number" id="c_weight" required min="30" max="200" value="70">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="c_duration">Exercise Duration (in Minutes): <span class="hint">Total active workout session length measured in minutes (Dataset range: 1 – 30 mins)</span></label>
+            <input type="number" step="0.1" id="c_duration" required min="1" max="180" value="15">
+        </div>
+
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="c_hr">Heart Rate (bpm): <span class="hint">Average pulse during exercise (60 – 130 bpm)</span></label>
+                <input type="number" id="c_hr" required min="50" max="220" value="100">
+            </div>
+
+            <div class="input-group">
+                <label for="c_temp">Body Temperature (°C): <span class="hint">Elevated workout temp (37.0 – 41.5 °C)</span></label>
+                <input type="number" step="0.1" id="c_temp" required min="35" max="43" value="40.0">
+            </div>
+        </div>
+
+        <button type="submit" id="btn-submit-calories" class="submit-btn">Run Calorie ONNX Model</button>
+    </form>
+
+    <!-- 2. Heart Disease Classification Form -->
+    <form id="form-heart" class="form-section" onsubmit="runHeartONNX(event)">
+        <div class="info-card">
+            <strong>Cleveland Heart Disease Model (Heart_MLP):</strong> Evaluates cardiovascular risk using 13 clinical indicators. 
+        </div>
+
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="h_age">Age (Years): <span class="hint">Patient age (Study range: 29 – 77)</span></label>
+                <input type="number" id="h_age" required min="18" max="100" value="54">
+            </div>
+
+            <div class="input-group">
+                <label for="h_sex">Gender (M / F):</label>
+                <select id="h_sex">
+                    <option value="1">Male (M)</option>
+                    <option value="0">Female (F)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="h_cp">Chest Pain Type (cp): <span class="hint">Type of chest discomfort experienced (0: Classic heart-related angina, 1: Atypical chest pain, 2: Non-heart pain, 3: No chest pain / Asymptomatic)</span></label>
+            <select id="h_cp">
+                <option value="0">0 – Typical Angina</option>
+                <option value="1">1 – Atypical Angina</option>
+                <option value="2">2 – Non-Anginal Pain</option>
+                <option value="3">3 – Asymptomatic</option>
+            </select>
+        </div>
+
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="h_trestbps">Resting Blood Pressure (mm Hg): <span class="hint">Blood pressure at rest. Normal: 90 – 120; Elevated: &gt; 130</span></label>
+                <input type="number" id="h_trestbps" required min="80" max="220" value="130">
+            </div>
+
+            <div class="input-group">
+                <label for="h_chol">Serum Cholesterol (mg/dl): <span class="hint">Total blood cholesterol. Healthy: &lt; 200; High: &gt; 240</span></label>
+                <input type="number" id="h_chol" required min="100" max="600" value="233">
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="h_fbs">Fasting Blood Sugar &gt; 120 mg/dl: <span class="hint">High blood sugar indicator after fasting</span></label>
+                <select id="h_fbs">
+                    <option value="0">No (&le; 120 mg/dl - Normal)</option>
+                    <option value="1">Yes (&gt; 120 mg/dl - Elevated)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="h_restecg">Resting ECG Results: <span class="hint">Electrical heart activity at rest</span></label>
+                <select id="h_restecg">
+                    <option value="0">0 – Normal</option>
+                    <option value="1">1 – ST-T Wave Abnormality</option>
+                    <option value="2">2 – Left Ventricular Hypertrophy</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="h_thalach">Max Heart Rate Achieved (bpm): <span class="hint">Peak pulse during stress test (Typical: 100 – 200 bpm)</span></label>
+                <input type="number" id="h_thalach" required min="60" max="220" value="150">
+            </div>
+
+            <div class="input-group">
+                <label for="h_exang">Exercise-Induced Angina: <span class="hint">Does physical exertion trigger chest pain?</span></label>
+                <select id="h_exang">
+                    <option value="0">No (0)</option>
+                    <option value="1">Yes (1)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="h_oldpeak">ST Depression / Oldpeak (mm): <span class="hint">ECG wave dip caused by exercise relative to rest (Normal: 0.0 – 1.0; High risk: &gt; 2.0)</span></label>
+                <input type="number" step="0.1" id="h_oldpeak" required min="0" max="10" value="1.0">
+            </div>
+
+            <div class="input-group">
+                <label for="h_slope">Peak Exercise ST Slope: <span class="hint">Trend of ECG line during peak exercise</span></label>
+                <select id="h_slope">
+                    <option value="0">0 – Upsloping (Healthy)</option>
+                    <option value="1">1 – Flat</option>
+                    <option value="2">2 – Downsloping</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="h_ca">Major Vessels Colored (0–3): <span class="hint">Number of major heart blood vessels visible on X-ray dye scan (0 is healthiest)</span></label>
+                <select id="h_ca">
+                    <option value="0">0 Vessels</option>
+                    <option value="1">1 Vessel</option>
+                    <option value="2">2 Vessels</option>
+                    <option value="3">3 Vessels</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="h_thal">Thalassemia Blood Scan: <span class="hint">Measures blood flow defects in heart muscle</span></label>
+                <select id="h_thal">
+                    <option value="1">1 – Fixed Defect (Past damage)</option>
+                    <option value="2" selected>2 – Normal Blood Flow</option>
+                    <option value="3">3 – Reversible Defect (Reduced flow under stress)</option>
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" id="btn-submit-heart" class="submit-btn">Run Heart Disease ONNX Model</button>
+    </form>
+
+    <!-- Result Display Box -->
+    <div id="result-box" class="result-box">
+        <h3 id="result-title">ONNX Model Prediction</h3>
+        <div class="result-value" id="result-text">-</div>
+        <div class="prob-subtext" id="result-subtext"></div>
+    </div>
+</div>
+
+<!-- Link external JavaScript logic -->
+<script src="index.js"></script>
+</body>
+</html>
