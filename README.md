@@ -2,7 +2,7 @@
 
 > **🌐 Live Application:** **[https://<Shraddha12-sys>.github.io/<ml-onnx-web-app>/](https://shraddha12-sys.github.io/ml-onnx-web-app/)**
 
-An interactive, serverless machine learning web application powered by **PyTorch**, **ONNX (`opset_version=18`)**, and **ONNX Runtime Web**. Both neural networks execute directly inside the user's browser with zero backend server requirements.
+An interactive, machine learning web application powered by **PyTorch**, **ONNX (`opset_version=18`)**, and **ONNX Runtime Web**. 
 
 ---
 
